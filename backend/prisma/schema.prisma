@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Coordinates {
+  id        Int                @id @default(autoincrement())
+  latitude  Float
+  longitude Float
+  user      User[]
+  event     Event[]
+
+  @@unique([latitude, longitude])
+
+}
+model User {
+  id                  Int            @id @default(autoincrement())
+  username            String         @unique
+  role                String
+  password            String
+  interest            String?
+  coordinatesId       Int? 
+  coordinates         Coordinates?   @relation(fields: [coordinatesId], references: [id])
+  Availablility       Availability[]
+  UserInterests       UserInterest[]
+  EventHistory        EventHistory[]
+  Friends             Friend[]       @relation("UserFriends")
+  FriendsOf           Friend[]       @relation("FriendOf")
+  userPrivacySettings UserPrivacySettings[]
+  blockedUsers        BlockedUser[]  @relation("UserBlocked")
+  blockedByUser       BlockedUser[]  @relation("UserBlockedBy")
+  createdEvents       Event[]        @relation("EventCreator")
+  eventAttendances    EventAttendance[]
+  sentMessages        Message[]      @relation("MessageSender")
+  receivedMessages    Message[]      @relation("MessageReceiver")
+}
+
+model Availability {
+  id          Int              @id @default(autoincrement())
+  description String
+  start_date  DateTime
+  end_date    DateTime
+  user_id     Int
+  user        User             @relation(fields: [user_id], references: [id])
+}
+
+model Event{
+  id               Int            @id @default(autoincrement())
+  title            String
+  description      String?
+  category         String
+  start_date       DateTime
+  end_date         DateTime
+  location         String?
+  capacity         Int?
+  num_attending    Int            @default(0)
+  coordinatesId    Int? 
+  coordinates      Coordinates?   @relation(fields: [coordinatesId], references: [id])
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+  EventHistory     EventHistory[]  
+  creatorId        Int
+  creator          User           @relation("EventCreator", fields:[creatorId], references: [id])
+  isPublic         Boolean        @default(false)
+  hideAttendees    Boolean        @default(false)
+  eventAttendances EventAttendance[]
+
+}
+
+model UserInterest{
+  id       Int                 @id @default(autoincrement())
+  user_id  Int
+  category String
+  ranking  Int
+  user     User                @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, category])
+}
+
+model EventHistory{
+  id       Int                 @id @default(autoincrement())
+  user_id  Int
+  event_id Int
+  attended Boolean             @default(true)
+  user     User                @relation(fields: [user_id], references: [id])
+  event    Event               @relation(fields: [event_id], references: [id])
+
+  @@unique([user_id, event_id])
+}
+
+model Friend{
+  id         Int               @id @default(autoincrement())
+  user_id    Int
+  friend_id  Int
+  status     String            @default("pending")
+  created_at DateTime          @default(now())
+  updated_at DateTime          @updatedAt
+
+  user       User              @relation("UserFriends", fields:[user_id], references: [id])
+  friend     User              @relation("FriendOf", fields:[friend_id], references: [id])
+  
+  @@unique([user_id, friend_id])
+}
+
+model UserPrivacySettings {
+  id                Int               @id @default(autoincrement())
+  userId            Int               @unique
+  user              User              @relation(fields: [userId], references: [id])
+  profileVisibility String            @default("friends_only")
+  friendVisibility  String            @default("friends_only")
+  eventVisibility   String            @default("friends_only")
+
+  isAnon            Boolean           @default(false)
+  anonUsername      String?           
+
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+}
+
+model BlockedUser{
+  id            Int             @id @default(autoincrement())
+  userId        Int 
+  blockedUserId Int
+  created_at    DateTime        @default(now())
+  user          User            @relation("UserBlocked", fields: [userId], references: [id])
+  blockedUser   User            @relation("UserBlockedBy", fields: [blockedUserId], references: [id])
+
+  @@unique([userId, blockedUserId])
+}
+
+model EventAttendance{
+  id           Int              @id @default(autoincrement())
+  userId       Int
+  eventId      Int
+  isAnon       Boolean          @default(false)
+  anonUsername String?
+  user         User             @relation(fields: [userId], references: [id])
+  event        Event            @relation(fields: [eventId], references: [id])
+  
+  @@unique([userId, eventId])
+}
+
+model Message{
+  id           Int              @id @default(autoincrement())
+  senderId     Int
+  receiverId   Int
+  content      String
+  isRead       Boolean          @default(false)
+  created_at   DateTime         @default(now())
+  sender       User             @relation("MessageSender", fields:[senderId], references: [id])
+  receiver     User             @relation("MessageReceiver", fields:[receiverId], references: [id])
+}
