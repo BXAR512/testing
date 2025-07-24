@@ -16,8 +16,8 @@ model Coordinates {
   event     Event[]
 
   @@unique([latitude, longitude])
-
 }
+
 model User {
   id                  Int            @id @default(autoincrement())
   username            String         @unique
@@ -29,11 +29,7 @@ model User {
   Availablility       Availability[]
   UserInterests       UserInterest[]
   EventHistory        EventHistory[]
-  Friends             Friend[]       @relation("UserFriends")
-  FriendsOf           Friend[]       @relation("FriendOf")
   userPrivacySettings UserPrivacySettings[]
-  blockedUsers        BlockedUser[]  @relation("UserBlocked")
-  blockedByUser       BlockedUser[]  @relation("UserBlockedBy")
   createdEvents       Event[]        @relation("EventCreator")
   eventAttendances    EventAttendance[]
   sentMessages        Message[]      @relation("MessageSender")
@@ -69,7 +65,6 @@ model Event{
   isPublic         Boolean        @default(false)
   hideAttendees    Boolean        @default(false)
   eventAttendances EventAttendance[]
-
 }
 
 model UserInterest{
@@ -93,44 +88,14 @@ model EventHistory{
   @@unique([user_id, event_id])
 }
 
-model Friend{
-  id         Int               @id @default(autoincrement())
-  user_id    Int
-  friend_id  Int
-  status     String            @default("pending")
-  created_at DateTime          @default(now())
-  updated_at DateTime          @updatedAt
-
-  user       User              @relation("UserFriends", fields:[user_id], references: [id])
-  friend     User              @relation("FriendOf", fields:[friend_id], references: [id])
-  
-  @@unique([user_id, friend_id])
-}
-
 model UserPrivacySettings {
   id                Int               @id @default(autoincrement())
   userId            Int               @unique
   user              User              @relation(fields: [userId], references: [id])
-  profileVisibility String            @default("friends_only")
-  friendVisibility  String            @default("friends_only")
-  eventVisibility   String            @default("friends_only")
-
   isAnon            Boolean           @default(false)
   anonUsername      String?           
-
   created_at        DateTime          @default(now())
   updated_at        DateTime          @updatedAt
-}
-
-model BlockedUser{
-  id            Int             @id @default(autoincrement())
-  userId        Int 
-  blockedUserId Int
-  created_at    DateTime        @default(now())
-  user          User            @relation("UserBlocked", fields: [userId], references: [id])
-  blockedUser   User            @relation("UserBlockedBy", fields: [blockedUserId], references: [id])
-
-  @@unique([userId, blockedUserId])
 }
 
 model EventAttendance{

@@ -1,6 +1,8 @@
 const express = require("express");
 const { PrismaClient } = require("../generated/prisma");
 const PrivacyService = require("../service/privacyService");
+const PrivacyRequest = require("../handler/privacyRequest");
+const PrivacyHandlerCreator = require("../handler/privacyActionHandler");
 
 const privacyService = new PrivacyService();
 
@@ -38,19 +40,10 @@ router.get("/settings", requireAuth, async (request, response) => {
 
 router.put("/settings", requireAuth, async (request, response) => {
   try {
-    const {
-      profileVisibility,
-      friendVisibility,
-      eventVisibility,
-      isAnon,
-      anonUsername,
-    } = request.body;
+    const { isAnon, anonUsername } = request.body;
     const settings = await privacyService.updatePrivacySettings(
       request.session.userId,
       {
-        profileVisibility,
-        friendVisibility,
-        eventVisibility,
         isAnon,
         anonUsername,
       }
@@ -64,84 +57,57 @@ router.put("/settings", requireAuth, async (request, response) => {
   }
 });
 
-router.post("/block/:userId", requireAuth, async (request, response) => {
+// Endpoint for viewing event attendees with privacy framework
+router.get("/event/:eventId/attendees", requireAuth, async (request, response) => {
   try {
-    const userToBlockId = parseInt(request.params.userId);
+    const eventId = parseInt(request.params.eventId);
+    const requesterId = request.session.userId;
 
-    if (userToBlockId === request.session.userId) {
-      return response.status(400).json({
-        message: "Can't block yourself",
-      });
-    }
-
-    const result = await privacyService.blockUser(
-      request.session.userId,
-      userToBlockId
+    // Create privacy request for viewing attendees
+    const privacyRequest = new PrivacyRequest(
+      requesterId,
+      null, // targetId is not needed for event attendees
+      "view_attendees",
+      "View event attendees"
     );
-    response.json(result);
-  } catch (error) {
-    console.error("Error blocking user", error);
-    response.status(500).json({
-      message: "Error blocking user!",
-    });
-  }
-});
+    
+    // Set event context
+    privacyRequest.setContext("eventId", eventId);
 
-router.delete("/block/:userId", requireAuth, async (request, response) => {
-  try {
-    const userToUnblockId = parseInt(request.params.userId);
+    // Get the specific handler for view_attendees
+    const handler = PrivacyHandlerCreator.createSpecificHandler("view_attendees");
+    
+    // Process the request through the privacy framework
+    const result = await handler.process(privacyRequest);
 
-    const result = await privacyService.unblockUser(
-      request.session.userId,
-      userToUnblockId
-    );
-    response.json(result);
-  } catch (error) {
-    console.error("Error unblocking user", error);
-    response.status(500).json({
-      message: "Error unblocking user!",
-    });
-  }
-});
-
-router.get("/blocked", requireAuth, async (request, response) => {
-  try {
-    const blockedUsers = await privacyService.getBlockedUsers(
-      request.session.userId
-    );
-
-    response.json({ blockedUsers });
-  } catch (error) {
-    console.error("Error getting blocked users", error);
-    response.status(500).json({
-      message: "Error getting blocked users!",
-    });
-  }
-});
-
-router.get(
-  "/friend/:friendId/settings",
-  requireAuth,
-  async (request, response) => {
-    try {
-      const friendId = parseInt(request.params.friendId);
-      const settings = await privacyService.getFriendPrivacySettings(
-        request.session.userId,
-        friendId
-      );
-
-      if (!settings) {
-        return response.status(404).json({
-          message: "Friend not found or settings not accessible",
+    if (result.handled) {
+      if (result.response.allowed) {
+        response.json({
+          success: true,
+          attendees: result.response.data,
+          handler: result.response.handler,
+          reason: result.response.reason
+        });
+      } else {
+        response.status(403).json({
+          success: false,
+          message: result.response.reason,
+          handler: result.response.handler
         });
       }
-      response.json({ settings });
-    } catch (error) {
-      console.error("Error getting friend privacy settings", error);
+    } else {
       response.status(500).json({
-        message: "Error getting friend privacy settings",
+        success: false,
+        message: "Failed to process request"
       });
     }
+  } catch (error) {
+    console.error("Error viewing event attendees:", error);
+    response.status(500).json({
+      success: false,
+      message: "Error viewing event attendees"
+    });
   }
-);
+});
+
 module.exports = router;

@@ -19,6 +19,7 @@ class viewAttendeesHandler extends ActionHandler {
         ),
       };
     }
+    
     const event = await this.getEvent(eventId);
     if (!event) {
       return {
@@ -28,6 +29,8 @@ class viewAttendeesHandler extends ActionHandler {
         ),
       };
     }
+
+    // Event creator can always see attendees
     if (request.requesterId === event.creatorId) {
       const attendees = await this.getAttendees(eventId);
       return {
@@ -37,19 +40,8 @@ class viewAttendeesHandler extends ActionHandler {
         ),
       };
     }
-    const isBlocked = await this.checkBlockedStatus(
-      request.requesterId,
-      event.creatorId
-    );
-    if (isBlocked) {
-      return {
-        handled: true,
-        response: PrivacyResponse.failure("Access blocked").setHandler(
-          "ViewAttendeesHandler-Blocked"
-        ),
-      };
-    }
 
+    // If event is public, anyone can see attendees
     if (event.isPublic) {
       const attendees = await this.getAttendees(eventId);
       return {
@@ -60,20 +52,7 @@ class viewAttendeesHandler extends ActionHandler {
       };
     }
 
-    const areFriends = await this.checkFriendship(
-      request.requesterId,
-      event.creatorId
-    );
-    if (areFriends) {
-      const attendees = await this.getAttendees(eventId);
-      return {
-        handled: true,
-        response: PrivacyResponse.success(attendees).setHandler(
-          "ViewAttendeesHandler-Friends"
-        ),
-      };
-    }
-
+    // If event is private, only attendees can see other attendees
     const isAttending = await this.checkAttendance(
       request.requesterId,
       eventId
@@ -87,9 +66,11 @@ class viewAttendeesHandler extends ActionHandler {
         ),
       };
     }
+
+    // Default: access denied
     return {
       handled: true,
-      response: PrivacyResponse.success("Access denied").setHandler(
+      response: PrivacyResponse.failure("Access denied").setHandler(
         "ViewAttendeesHandler-Default"
       ),
     };
@@ -123,54 +104,11 @@ class viewAttendeesHandler extends ActionHandler {
       user: attendance.isAnon
         ? {
             id: attendance.user.id,
-            username: attendance.anonUsername || "Annonymous user",
+            username: attendance.anonUsername || "Anonymous User",
             isAnon: true,
           }
         : attendance.user,
     }));
-  }
-
-  async checkBlockedStatus(requesterId, targetId) {
-    const blockedByTarget = await prisma.blockedUser.findUnique({
-      where: {
-        userId_blockedUserId: {
-          userId: targetId,
-          blockedUserId: requesterId,
-        },
-      },
-    });
-
-    const hasBlockedTarget = await prisma.blockedUser.findUnique({
-      where: {
-        userId_blockedUserId: {
-          userId: requesterId,
-          blockedUserId: targetId,
-        },
-      },
-    });
-
-    return !!(blockedByTarget || hasBlockedTarget);
-  }
-
-  async checkFriendship(userId1, userId2) {
-    const friendship = await prisma.friend.findFirst({
-      where: {
-        OR: [
-          {
-            user_id: userId1,
-            friend_id: userId2,
-            status: "accepted",
-          },
-          {
-            user_id: userId2,
-            friend_id: userId1,
-            status: "accepted",
-          },
-        ],
-      },
-    });
-
-    return !!friendship;
   }
 
   async checkAttendance(userId, eventId) {

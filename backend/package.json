@@ -4,8 +4,6 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
     "server": "node --watch index.js",
     "seed": "node prisma/seeds.js",
     "seed2": "node prisma/carpoolSeed.js"
@@ -23,9 +21,7 @@
     "express-session": "^1.18.1"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
     "jest": "^30.0.5",
-    "prisma": "^6.10.1",
-    "supertest": "^7.1.4"
+    "prisma": "^6.10.1"
   }
 }
