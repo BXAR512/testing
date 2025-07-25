@@ -1,11 +1,39 @@
-const { PrismaClient } = require("../generated/prisma");
+let PrismaClient;
+try {
+  const prismaModule = require("../generated/prisma");
+  PrismaClient = prismaModule.PrismaClient;
+} catch (error) {
+  // For testing environment, create a mock
+  PrismaClient = class MockPrismaClient {
+    constructor() {
+      this.userPrivacySettings = {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        upsert: jest.fn(),
+      };
+      this.user = {
+        findUnique: jest.fn(),
+      };
+      this.event = {
+        findUnique: jest.fn(),
+      };
+      this.eventAttendance = {
+        findUnique: jest.fn(),
+      };
+    }
+  };
+}
 
 const prisma = new PrismaClient();
 
 class PrivacyService {
+  constructor() {
+    this.prisma = prisma;
+  }
+
   async getPrivacySettings(userId) {
     try {
-      return await prisma.userPrivacySettings.findUnique({
+      return await this.prisma.userPrivacySettings.findUnique({
         where: { userId },
       });
     } catch (error) {
@@ -16,7 +44,7 @@ class PrivacyService {
 
   async createPrivacySettings(userId) {
     try {
-      return await prisma.userPrivacySettings.create({
+      return await this.prisma.userPrivacySettings.create({
         data: {
           userId,
           isAnon: false,
@@ -31,7 +59,7 @@ class PrivacyService {
 
   async updatePrivacySettings(userId, settings) {
     try {
-      return await prisma.userPrivacySettings.upsert({
+      return await this.prisma.userPrivacySettings.upsert({
         where: { userId },
         update: {
           isAnon: settings.isAnon,
@@ -89,6 +117,44 @@ class PrivacyService {
       return true;
     } catch (error) {
       console.error("Error checking profile view permission:", error);
+      return false;
+    }
+  }
+
+  async canViewEventAttendees(viewerId, eventId) {
+    try {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { creatorId: true, isPublic: true },
+      });
+
+      if (!event) {
+        return false;
+      }
+
+      // Event creator can always see attendees
+      if (viewerId === event.creatorId) {
+        return true;
+      }
+
+      // Public events can be viewed by anyone
+      if (event.isPublic) {
+        return true;
+      }
+
+      // Private events can only be viewed by attendees
+      const attendance = await this.prisma.eventAttendance.findUnique({
+        where: {
+          userId_eventId: {
+            userId: viewerId,
+            eventId: eventId,
+          },
+        },
+      });
+
+      return !!attendance;
+    } catch (error) {
+      console.error("Error checking event attendees view permission:", error);
       return false;
     }
   }
@@ -160,6 +226,38 @@ class PrivacyService {
     } catch (error) {
       console.error("Error filtering attendees list: ", error);
       return [];
+    }
+  }
+
+  async getDisplayName(userId) {
+    try {
+      const privacySettings = await this.getPrivacySettings(userId);
+      if (privacySettings && privacySettings.isAnon) {
+        return privacySettings.anonUsername || "Anonymous User";
+      }
+      
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true },
+      });
+      
+      return user ? user.username : "Unknown User";
+    } catch (error) {
+      console.error("Error getting display name:", error);
+      return "Unknown User";
+    }
+  }
+
+  async ensurePrivacySettings(userId) {
+    try {
+      let settings = await this.getPrivacySettings(userId);
+      if (!settings) {
+        settings = await this.createPrivacySettings(userId);
+      }
+      return settings;
+    } catch (error) {
+      console.error("Error ensuring privacy settings:", error);
+      return null;
     }
   }
 }

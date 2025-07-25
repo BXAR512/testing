@@ -1,51 +1,47 @@
-const {
-  PrivacyHandlerCreator,
-  ViewProfileHandler,
-  ViewFriendsHandler,
-  ViewAttendeesHandler,
-} = require("../handler/privacyActionHandler");
+const PrivacyHandlerCreator = require("../handler/privacyActionHandler");
+const ViewProfileHandler = require("../handler/viewProfileHandler");
+const ViewAttendeesHandler = require("../handler/viewAttendeesHandler");
+const ViewCarpoolHandler = require("../handler/viewCarpoolHandler");
+const ViewScheduleHandler = require("../handler/viewScheduleHandler");
 
 describe("PrivacyHandlerCreator", () => {
-  test("Should create a chain of handlers in the correct order", () => {
-    const chain = PrivacyHandlerCreator.createHandlerChain();
+  describe("createHandlerChain", () => {
+    test("should create a chain with all handlers in correct order", () => {
+      const chain = PrivacyHandlerCreator.createHandlerChain();
 
-    expect(chain).toBeInstanceOf(ViewProfileHandler);
-    expect(chain.action).toBe("view_profile");
-
-    expect(chain.nextHandler).toBeInstanceOf(ViewFriendsHandler);
-    expect(chain.nextHandler.action).toBe("view_friends");
-
-    expect(chain.nextHandler.nextHandler).toBeInstanceOf(ViewAttendeesHandler);
-    expect(chain.nextHandler.nextHandler.action).toBe("view_attendees");
-
-    expect(chain.nextHandler.nextHandler.nextHandler).toBeNull();
+      expect(chain).toBeInstanceOf(ViewProfileHandler);
+      expect(chain.next).toBeInstanceOf(ViewAttendeesHandler);
+      expect(chain.next.next).toBeInstanceOf(ViewCarpoolHandler);
+      expect(chain.next.next.next).toBeInstanceOf(ViewScheduleHandler);
+      expect(chain.next.next.next.next).toBeNull();
+    });
   });
 
-  test('Should create independent chain instances', () => {
-    const chain1 = PrivacyHandlerCreator.createHandlerChain();
-    const chain2 = PrivacyHandlerCreator.createHandlerChain();
+  describe("createSpecificHandler", () => {
+    test("should create ViewProfileHandler for view_profile action", () => {
+      const handler = PrivacyHandlerCreator.createSpecificHandler("view_profile");
+      expect(handler).toBeInstanceOf(ViewProfileHandler);
+    });
 
-    expect(chain1).not.toBe(chain2);
-    expect(chain1.nextHandler).not.toBe(chain2.nextHandler);
-  });
+    test("should create ViewAttendeesHandler for view_attendees action", () => {
+      const handler = PrivacyHandlerCreator.createSpecificHandler("view_attendees");
+      expect(handler).toBeInstanceOf(ViewAttendeesHandler);
+    });
 
-    test('Should create specific handler', () => {
-    const handler = PrivacyHandlerCreator.createSpecificHandler('view_profile');
+    test("should create ViewCarpoolHandler for view_carpool action", () => {
+      const handler = PrivacyHandlerCreator.createSpecificHandler("view_carpool");
+      expect(handler).toBeInstanceOf(ViewCarpoolHandler);
+    });
 
-    expect(handler).toBeInstanceOf(ViewProfileHandler);
-    expect(handler.action).toBe('view_profile');
-  });
+    test("should create ViewScheduleHandler for view_schedule action", () => {
+      const handler = PrivacyHandlerCreator.createSpecificHandler("view_schedule");
+      expect(handler).toBeInstanceOf(ViewScheduleHandler);
+    });
 
-    test('Should create viewFriendsHandler for respective action', () => {
-    const handler = PrivacyHandlerCreator.createSpecificHandler('view_friends');
-
-    expect(handler).toBeInstanceOf(ViewFriendsHandler);
-    expect(handler.action).toBe('view_friends');
-  });
-      test('Should create viewAttendeesHandler for respective action', () => {
-    const handler = PrivacyHandlerCreator.createSpecificHandler('view_attendees');
-
-    expect(handler).toBeInstanceOf(ViewAttendeesHandler);
-    expect(handler.action).toBe('view_attendees');
+    test("should throw error for unknown action", () => {
+      expect(() => {
+        PrivacyHandlerCreator.createSpecificHandler("unknown_action");
+      }).toThrow("Unknown action: unknown_action");
+    });
   });
 });

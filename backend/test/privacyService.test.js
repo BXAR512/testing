@@ -345,6 +345,150 @@ describe("PrivacyService", () => {
     });
   });
 
+  describe("filterUserData", () => {
+    test("should filter anonymous user data", async () => {
+      const viewer = await prisma.user.create({
+        data: {
+          username: "viewer",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      const anonymousUser = await prisma.user.create({
+        data: {
+          username: "anonymous",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      await prisma.userPrivacySettings.create({
+        data: {
+          userId: anonymousUser.id,
+          isAnon: true,
+          anonUsername: "Secret User",
+        },
+      });
+
+      const userData = {
+        id: anonymousUser.id,
+        username: "anonymous",
+        role: "student",
+      };
+
+      const result = await privacyService.filterUserData(viewer.id, userData);
+
+      expect(result.isAnon).toBe(true);
+      expect(result.username).toBe("Secret User");
+    });
+
+    test("should filter non-anonymous user data", async () => {
+      const viewer = await prisma.user.create({
+        data: {
+          username: "viewer",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      const regularUser = await prisma.user.create({
+        data: {
+          username: "regular",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      await prisma.userPrivacySettings.create({
+        data: {
+          userId: regularUser.id,
+          isAnon: false,
+        },
+      });
+
+      const userData = {
+        id: regularUser.id,
+        username: "regular",
+        role: "student",
+      };
+
+      const result = await privacyService.filterUserData(viewer.id, userData);
+
+      expect(result.isAnon).toBe(false);
+      expect(result.username).toBe("regular");
+    });
+  });
+
+  describe("filterAttendeesList", () => {
+    test("should filter attendees list based on privacy settings", async () => {
+      const viewer = await prisma.user.create({
+        data: {
+          username: "viewer",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      const anonymousUser = await prisma.user.create({
+        data: {
+          username: "anonymous",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      const regularUser = await prisma.user.create({
+        data: {
+          username: "regular",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      // Set up privacy settings
+      await prisma.userPrivacySettings.create({
+        data: {
+          userId: anonymousUser.id,
+          isAnon: true,
+          anonUsername: "Secret User",
+        },
+      });
+
+      await prisma.userPrivacySettings.create({
+        data: {
+          userId: regularUser.id,
+          isAnon: false,
+        },
+      });
+
+      const attendees = [
+        {
+          user: {
+            id: anonymousUser.id,
+            username: "anonymous",
+            role: "student",
+          },
+        },
+        {
+          user: {
+            id: regularUser.id,
+            username: "regular",
+            role: "student",
+          },
+        },
+      ];
+
+      const result = await privacyService.filterAttendeesList(viewer.id, attendees);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].user.isAnon).toBe(true);
+      expect(result[0].user.username).toBe("Secret User");
+      expect(result[1].user.isAnon).toBe(false);
+      expect(result[1].user.username).toBe("regular");
+    });
+  });
+
   describe("getDisplayName", () => {
     test("should return anonymous username for anonymous user", async () => {
       const user = await prisma.user.create({
@@ -387,6 +531,46 @@ describe("PrivacyService", () => {
       const result = await privacyService.getDisplayName(user.id);
 
       expect(result).toBe("realuser");
+    });
+  });
+
+  describe("ensurePrivacySettings", () => {
+    test("should create privacy settings if they don't exist", async () => {
+      const user = await prisma.user.create({
+        data: {
+          username: "newuser",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      const result = await privacyService.ensurePrivacySettings(user.id);
+
+      expect(result).not.toBeNull();
+      expect(result.userId).toBe(user.id);
+      expect(result.isAnon).toBe(false);
+    });
+
+    test("should return existing privacy settings", async () => {
+      const user = await prisma.user.create({
+        data: {
+          username: "existinguser",
+          password: "password",
+          role: "student",
+        },
+      });
+
+      const existingSettings = await prisma.userPrivacySettings.create({
+        data: {
+          userId: user.id,
+          isAnon: true,
+          anonUsername: "Existing User",
+        },
+      });
+
+      const result = await privacyService.ensurePrivacySettings(user.id);
+
+      expect(result).toEqual(existingSettings);
     });
   });
 }); 
