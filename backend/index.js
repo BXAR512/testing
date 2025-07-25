@@ -9,7 +9,6 @@ const authRoutes = require("./routes/auth");
 const mapboxRoutes = require("./routes/mapbox");
 const rankRoutes = require("./routes/ranking");
 const carpoolRoutes = require("./routes/carpool");
-const friendRoutes = require("./routes/friend");
 const privacyRoutes = require("./routes/privacy");
 
 app.use(express.json());
@@ -32,8 +31,7 @@ app.use(
 app.use(authRoutes);
 app.use("/api", mapboxRoutes);
 app.use("/api", rankRoutes);
-app.use("/api", carpoolRoutes);
-app.use("/friend", friendRoutes);
+app.use("/carpool", carpoolRoutes);
 app.use("/privacy", privacyRoutes);
 
 app.listen(PORT, () => {

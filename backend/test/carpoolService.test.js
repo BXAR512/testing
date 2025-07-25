@@ -1,24 +1,20 @@
 const CarpoolService = require("../service/carpoolService");
 const { PrismaClient } = require("../generated/prisma");
-
 describe("CarpoolService", () => {
   let carpoolService;
   let prisma;
 
   beforeAll(async () => {
-    // Use a test database URL
-    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || "postgresql://username:password@localhost:5432/sera_test_db";
     prisma = new PrismaClient();
     await prisma.$connect();
   });
 
   beforeEach(async () => {
-    // Clean up the database before each test
     await prisma.userPrivacySettings.deleteMany();
     await prisma.eventAttendance.deleteMany();
     await prisma.event.deleteMany();
     await prisma.user.deleteMany();
-    
+
     carpoolService = new CarpoolService();
   });
 
@@ -32,15 +28,15 @@ describe("CarpoolService", () => {
         data: {
           username: "creator",
           password: "password",
-          role: "student",
+          role: "owner",
         },
       });
 
       const event = await prisma.event.create({
         data: {
           title: "Test Event",
-          description: "Test Description",
-          category: "Test",
+          description: "Test",
+          category: "Music",
           start_date: new Date(),
           end_date: new Date(),
           creatorId: creator.id,
@@ -48,8 +44,10 @@ describe("CarpoolService", () => {
         },
       });
 
-      const result = await carpoolService.canViewCarpoolParticipants(creator.id, event.id);
-
+      const result = await carpoolService.canViewCarpoolParticipants(
+        creator.id,
+        event.id
+      );
       expect(result).toBe(true);
     });
 
@@ -58,11 +56,11 @@ describe("CarpoolService", () => {
         data: {
           username: "creator",
           password: "password",
-          role: "student",
+          role: "owner",
         },
       });
 
-      const viewer = await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
           username: "viewer",
           password: "password",
@@ -73,8 +71,8 @@ describe("CarpoolService", () => {
       const event = await prisma.event.create({
         data: {
           title: "Public Event",
-          description: "Public Description",
-          category: "Test",
+          description: "Public",
+          category: "Music",
           start_date: new Date(),
           end_date: new Date(),
           creatorId: creator.id,
@@ -82,7 +80,17 @@ describe("CarpoolService", () => {
         },
       });
 
-      const result = await carpoolService.canViewCarpoolParticipants(viewer.id, event.id);
+      await prisma.eventAttendance.create({
+        data: {
+          userId: user.id,
+          eventId: event.id,
+        },
+      });
+
+      const result = await carpoolService.canViewCarpoolParticipants(
+        user.id,
+        event.id
+      );
 
       expect(result).toBe(true);
     });
@@ -92,13 +100,13 @@ describe("CarpoolService", () => {
         data: {
           username: "creator",
           password: "password",
-          role: "student",
+          role: "owner",
         },
       });
 
-      const attendee = await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
-          username: "attendee",
+          username: "viewer",
           password: "password",
           role: "student",
         },
@@ -107,8 +115,8 @@ describe("CarpoolService", () => {
       const event = await prisma.event.create({
         data: {
           title: "Private Event",
-          description: "Private Description",
-          category: "Test",
+          description: "Private",
+          category: "Music",
           start_date: new Date(),
           end_date: new Date(),
           creatorId: creator.id,
@@ -118,12 +126,15 @@ describe("CarpoolService", () => {
 
       await prisma.eventAttendance.create({
         data: {
-          userId: attendee.id,
+          userId: user.id,
           eventId: event.id,
         },
       });
 
-      const result = await carpoolService.canViewCarpoolParticipants(attendee.id, event.id);
+      const result = await carpoolService.canViewCarpoolParticipants(
+        user.id,
+        event.id
+      );
 
       expect(result).toBe(true);
     });
@@ -133,13 +144,13 @@ describe("CarpoolService", () => {
         data: {
           username: "creator",
           password: "password",
-          role: "student",
+          role: "owner",
         },
       });
 
-      const nonAttendee = await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
-          username: "nonattendee",
+          username: "viewer",
           password: "password",
           role: "student",
         },
@@ -148,8 +159,8 @@ describe("CarpoolService", () => {
       const event = await prisma.event.create({
         data: {
           title: "Private Event",
-          description: "Private Description",
-          category: "Test",
+          description: "Private",
+          category: "Music",
           start_date: new Date(),
           end_date: new Date(),
           creatorId: creator.id,
@@ -157,7 +168,10 @@ describe("CarpoolService", () => {
         },
       });
 
-      const result = await carpoolService.canViewCarpoolParticipants(nonAttendee.id, event.id);
+      const result = await carpoolService.canViewCarpoolParticipants(
+        user.id,
+        event.id
+      );
 
       expect(result).toBe(false);
     });
@@ -165,23 +179,22 @@ describe("CarpoolService", () => {
 
   describe("getCarpoolParticipants", () => {
     test("should return only non-anonymous users as carpool participants", async () => {
-      const creator = await prisma.user.create({
+      const organizer = await prisma.user.create({
         data: {
           username: "creator",
           password: "password",
-          role: "student",
+          role: "owner",
         },
       });
 
-      const anonymousUser = await prisma.user.create({
+      const anonymous = await prisma.user.create({
         data: {
-          username: "anonymous",
+          username: "anon",
           password: "password",
           role: "student",
         },
       });
-
-      const regularUser = await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
           username: "regular",
           password: "password",
@@ -189,52 +202,52 @@ describe("CarpoolService", () => {
         },
       });
 
-      const event = await prisma.event.create({
+      const publicEvent = await prisma.event.create({
         data: {
           title: "Test Event",
-          description: "Test Description",
-          category: "Test",
+          description: "Test",
+          category: "Music",
           start_date: new Date(),
           end_date: new Date(),
-          creatorId: creator.id,
+          creatorId: organizer.id,
           isPublic: true,
         },
       });
 
-      // Set up privacy settings
       await prisma.userPrivacySettings.create({
         data: {
-          userId: anonymousUser.id,
+          userId: anonymous.id,
           isAnon: true,
         },
       });
 
       await prisma.userPrivacySettings.create({
         data: {
-          userId: regularUser.id,
+          userId: user.id,
           isAnon: false,
         },
       });
 
-      // Create attendances
       await prisma.eventAttendance.create({
         data: {
-          userId: anonymousUser.id,
-          eventId: event.id,
+          userId: anonymous.id,
+          eventId: publicEvent.id,
         },
       });
 
       await prisma.eventAttendance.create({
         data: {
-          userId: regularUser.id,
-          eventId: event.id,
+          userId: user.id,
+          eventId: publicEvent.id,
         },
       });
 
-      const participants = await carpoolService.getCarpoolParticipants(event.id);
+      const participants = await carpoolService.getCarpoolParticipants(
+        publicEvent.id
+      );
 
       expect(participants).toHaveLength(1);
-      expect(participants[0].userId).toBe(regularUser.id);
+      expect(participants[0].userId).toBe(user.id);
       expect(participants[0].username).toBe("regular");
     });
   });
@@ -248,47 +261,46 @@ describe("CarpoolService", () => {
           role: "student",
         },
       });
-
-      const anonymousUser = await prisma.user.create({
+      const anon = await prisma.user.create({
         data: {
-          username: "anonymous",
+          username: "anon",
+          password: "password",
+          role: "student",
+        },
+      });
+      const user = await prisma.user.create({
+        data: {
+          username: "user",
           password: "password",
           role: "student",
         },
       });
 
-      const regularUser = await prisma.user.create({
-        data: {
-          username: "regular",
-          password: "password",
-          role: "student",
-        },
-      });
-
-      // Set up privacy settings
       await prisma.userPrivacySettings.create({
         data: {
-          userId: anonymousUser.id,
+          userId: anon.id,
           isAnon: true,
         },
       });
 
       await prisma.userPrivacySettings.create({
         data: {
-          userId: regularUser.id,
+          userId: user.id,
           isAnon: false,
         },
       });
 
       const participants = [
-        { userId: anonymousUser.id, username: "anonymous" },
-        { userId: regularUser.id, username: "regular" },
+        { userId: anon.id, username: "anon" },
+        { userId: user.id, username: "user" },
       ];
-
-      const result = await carpoolService.filterCarpoolParticipants(viewer.id, participants);
+      const result = await carpoolService.filterCarpoolParticipants(
+        viewer.id,
+        participants
+      );
 
       expect(result).toHaveLength(1);
-      expect(result[0].userId).toBe(regularUser.id);
+      expect(result[0].userId).toBe(user.id);
     });
   });
 
@@ -301,9 +313,10 @@ describe("CarpoolService", () => {
           role: "student",
         },
       });
-
-      const result = await carpoolService.canViewParticipantProfile(user.id, user.id);
-
+      const result = await carpoolService.canViewParticipantProfile(
+        user.id,
+        user.id
+      );
       expect(result).toBe(true);
     });
 
@@ -316,9 +329,9 @@ describe("CarpoolService", () => {
         },
       });
 
-      const anonymousUser = await prisma.user.create({
+      const anon = await prisma.user.create({
         data: {
-          username: "anonymous",
+          username: "anon",
           password: "password",
           role: "student",
         },
@@ -326,16 +339,18 @@ describe("CarpoolService", () => {
 
       await prisma.userPrivacySettings.create({
         data: {
-          userId: anonymousUser.id,
+          userId: anon.id,
           isAnon: true,
         },
       });
 
-      const result = await carpoolService.canViewParticipantProfile(viewer.id, anonymousUser.id);
+      const result = await carpoolService.canViewParticipantProfile(
+        viewer.id,
+        anon.id
+      );
 
       expect(result).toBe(false);
     });
-
     test("should allow viewing non-anonymous user profile", async () => {
       const viewer = await prisma.user.create({
         data: {
@@ -345,7 +360,7 @@ describe("CarpoolService", () => {
         },
       });
 
-      const regularUser = await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
           username: "regular",
           password: "password",
@@ -355,12 +370,15 @@ describe("CarpoolService", () => {
 
       await prisma.userPrivacySettings.create({
         data: {
-          userId: regularUser.id,
+          userId: user.id,
           isAnon: false,
         },
       });
 
-      const result = await carpoolService.canViewParticipantProfile(viewer.id, regularUser.id);
+      const result = await carpoolService.canViewParticipantProfile(
+        viewer.id,
+        user.id
+      );
 
       expect(result).toBe(true);
     });
@@ -370,7 +388,7 @@ describe("CarpoolService", () => {
     test("should return anonymous username for anonymous user", async () => {
       const user = await prisma.user.create({
         data: {
-          username: "secretuser",
+          username: "anon",
           password: "password",
           role: "student",
         },
@@ -380,19 +398,18 @@ describe("CarpoolService", () => {
         data: {
           userId: user.id,
           isAnon: true,
-          anonUsername: "Secret User",
+          anonUsername: "turtle",
         },
       });
 
       const result = await carpoolService.getCarpoolDisplayName(user.id);
 
-      expect(result).toBe("Secret User");
+      expect(result).toBe("turtle");
     });
-
-    test("should return real username for non-anonymous user", async () => {
+    test("should return real username for  user", async () => {
       const user = await prisma.user.create({
         data: {
-          username: "realuser",
+          username: "real",
           password: "password",
           role: "student",
         },
@@ -407,7 +424,7 @@ describe("CarpoolService", () => {
 
       const result = await carpoolService.getCarpoolDisplayName(user.id);
 
-      expect(result).toBe("realuser");
+      expect(result).toBe("real");
     });
   });
-}); 
+});

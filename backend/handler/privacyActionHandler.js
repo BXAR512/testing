@@ -2,21 +2,18 @@ const ActionHandler = require("./actionHandler");
 const ViewProfileHandler = require("./viewProfileHandler");
 const ViewAttendeesHandler = require("./viewAttendeesHandler");
 const ViewCarpoolHandler = require("./viewCarpoolHandler");
-const ViewScheduleHandler = require("./viewScheduleHandler");
 
 class PrivacyHandlerCreator{
     static createHandlerChain(){
         const viewProfileHandler = new ViewProfileHandler();
         const viewAttendeesHandler = new ViewAttendeesHandler();
         const viewCarpoolHandler = new ViewCarpoolHandler();
-        const viewScheduleHandler = new ViewScheduleHandler();
 
         viewProfileHandler
-            .setNext(viewAttendeesHandler)
-            .setNext(viewCarpoolHandler)
-            .setNext(viewScheduleHandler);
+        .setNext(viewAttendeesHandler)
+        .setNext(viewCarpoolHandler);
 
-        return viewProfileHandler;
+    return viewProfileHandler;
     }
 
     static createSpecificHandler(action){
@@ -27,12 +24,16 @@ class PrivacyHandlerCreator{
                 return new ViewAttendeesHandler();
             case 'view_carpool':
                 return new ViewCarpoolHandler();
-            case 'view_schedule':
-                return new ViewScheduleHandler();
             default:
-                throw new Error(`Unknown action: ${action}`);
+                throw new Error(`Unkown action: ${action}`);
         }
     }
 }
 
-module.exports = PrivacyHandlerCreator;
+module.exports = {
+    ActionHandler,
+    ViewProfileHandler,
+    ViewAttendeesHandler,
+    ViewCarpoolHandler,
+    PrivacyHandlerCreator
+}
